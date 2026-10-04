@@ -8,6 +8,8 @@ A full-featured e-commerce platform with a customer storefront, an admin dashboa
 
 ## ✨ Features
 
+- this is a monorepo that uses pnpm workspace
+
 ### Customer storefront
 - Product browsing with categories, variants (size, color, etc.), and images
 - Search, filtering, and sorting (price, brand, category, attributes)
