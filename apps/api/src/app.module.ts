@@ -3,7 +3,9 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
 
 const DEV_JWT_SECRET = 'dev-secret-change-in-production';
 
@@ -44,7 +46,9 @@ const DEV_JWT_SECRET = 'dev-secret-change-in-production';
     // Individual routes tighten this with @Throttle().
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     PrismaModule,
+    AuditModule,
     AuthModule,
+    CatalogModule,
   ],
   providers: [
     {

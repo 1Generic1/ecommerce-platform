@@ -91,6 +91,12 @@ model Product {
   categoryId  String
   isActive    Boolean          @default(false)
   attributes  Json?
+  // Denormalized minimum price across active variants. Maintained by
+  // CatalogAdminService.recomputeMinPrice() inside every variant write,
+  // and self-healed by reconcileMinPrices(). Null when a product has no
+  // active variants. Used for sorting only — displayed prices come from
+  // the variants themselves.
+  minPriceMinor Int?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -104,6 +110,7 @@ model Product {
   @@index([slug])
   @@index([isActive])
   @@index([brand])
+  @@index([minPriceMinor])
   @@map("products")
 }
 
@@ -160,9 +167,11 @@ model Inventory {
   reserved     Int            @default(0)
   lowStockAt   Int            @default(5)
   updatedAt    DateTime       @updatedAt
+  available    Int            @default(0)
 
   variant      ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
 
+  @@index([available])
   @@map("inventory")
 }
 
@@ -497,6 +506,7 @@ model ReviewImage {
 model AuditLog {
   id         String   @id @default(uuid())
   actorId    String?
+  actorRole  Role?
   actorEmail String?
   action     String
   entityType String
