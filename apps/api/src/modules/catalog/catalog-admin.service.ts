@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/types/auth-user';
+import { CatalogCacheService } from './catalog-cache.service';
 import {
   CreateCategoryDto,
   UpdateCategoryDto,
@@ -26,10 +27,13 @@ export class CatalogAdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly cache: CatalogCacheService,
   ) {}
 
   // ---------- products ----------
 
+  // No cache invalidation here: a new product is unpublished, so nothing
+  // public could have cached it yet.
   async createProduct(dto: CreateProductDto) {
     await this.assertCategoryExists(dto.categoryId);
     await this.assertSlugFree(dto.slug);
@@ -95,13 +99,17 @@ export class CatalogAdminService {
       await this.assertSlugFree(dto.slug, id);
     }
 
-    return this.prisma.product.update({
+    const product = await this.prisma.product.update({
       where: { id },
       data: {
         ...dto,
         attributes: dto.attributes as Prisma.InputJsonValue | undefined,
       },
     });
+
+    await this.cache.invalidateProduct(id);
+
+    return product;
   }
 
   async setProductActive(id: string, isActive: boolean, actor?: AuthUser) {
@@ -132,6 +140,8 @@ export class CatalogAdminService {
       entityId: id,
     });
 
+    await this.cache.invalidateProduct(id);
+
     return product;
   }
 
@@ -142,8 +152,8 @@ export class CatalogAdminService {
     await this.assertSkuFree(dto.sku);
     this.assertComparePrice(dto.priceMinor, dto.compareAtMinor);
 
-    return this.prisma.$transaction(async (tx) => {
-      const variant = await tx.productVariant.create({
+    const variant = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.productVariant.create({
         data: {
           productId,
           sku: dto.sku,
@@ -158,7 +168,7 @@ export class CatalogAdminService {
       const quantity = dto.quantity ?? 0;
       await tx.inventory.create({
         data: {
-          variantId: variant.id,
+          variantId: created.id,
           quantity,
           reserved: 0,
           available: quantity,
@@ -168,10 +178,14 @@ export class CatalogAdminService {
       await this.recomputeMinPrice(tx, productId);
 
       return tx.productVariant.findUniqueOrThrow({
-        where: { id: variant.id },
+        where: { id: created.id },
         include: { inventory: true },
       });
     });
+
+    await this.cache.invalidateProduct(productId);
+
+    return variant;
   }
 
   async updateVariant(id: string, dto: UpdateVariantDto, actor?: AuthUser) {
@@ -244,6 +258,10 @@ export class CatalogAdminService {
       });
     }
 
+    // Invalidate on every update, not only price changes: the cached detail
+    // payload carries the variant's name and options too.
+    await this.cache.invalidateProduct(existing.productId);
+
     return variant;
   }
 
@@ -286,6 +304,8 @@ export class CatalogAdminService {
         productUnpublished: result.unpublished,
       },
     });
+
+    await this.cache.invalidateProduct(existing.productId);
 
     return result.variant;
   }
@@ -347,6 +367,10 @@ export class CatalogAdminService {
       after: { quantity: updated.quantity, lowStockAt: updated.lowStockAt },
     });
 
+    // A restock must show immediately rather than after the detail TTL;
+    // this write identifies a variant, so the product is resolved from it.
+    await this.cache.invalidateByVariant(variantId);
+
     return updated;
   }
 
@@ -373,6 +397,8 @@ export class CatalogAdminService {
         parentId: category.parentId,
       },
     });
+
+    await this.cache.invalidateCategories(category.slug);
 
     return category;
   }
@@ -436,6 +462,13 @@ export class CatalogAdminService {
       },
     });
 
+    await this.cache.invalidateCategories(category.slug);
+    // A renamed slug leaves the old key behind, serving a page that no
+    // longer exists until its TTL expires.
+    if (existing.slug !== category.slug) {
+      await this.cache.invalidateCategories(existing.slug);
+    }
+
     return category;
   }
 
@@ -494,6 +527,7 @@ export class CatalogAdminService {
   // Both statements must also match recomputeMinPrice()'s definition of the
   // minimum, or the reconciler and the write path will fight each other:
   // a fixed count that never settles toward zero means they have diverged.
+  // prisma/seed.ts mirrors the same definition.
   async reconcileMinPrices(): Promise<{ fixed: number }> {
     const BATCH = 500;
     let totalFixed = 0;
