@@ -7,6 +7,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
+import { UsersModule } from './modules/users/users.module';
 
 const DEV_JWT_SECRET = 'dev-secret-change-in-production';
 
@@ -50,6 +51,7 @@ const DEV_JWT_SECRET = 'dev-secret-change-in-production';
     AppCacheModule,
     AuditModule,
     AuthModule,
+    UsersModule,
     CatalogModule,
   ],
   providers: [
