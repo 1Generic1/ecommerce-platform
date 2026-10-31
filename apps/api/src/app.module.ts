@@ -8,6 +8,8 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { UsersModule } from './modules/users/users.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { CartModule } from './modules/cart/cart.module';
 
 const DEV_JWT_SECRET = 'dev-secret-change-in-production';
 
@@ -47,12 +49,17 @@ const DEV_JWT_SECRET = 'dev-secret-change-in-production';
     // Global default: 100 requests per minute per IP.
     // Individual routes tighten this with @Throttle().
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    // Global — injectable anywhere without being imported.
     PrismaModule,
     AppCacheModule,
     AuditModule,
+    InventoryModule,
+
+    // Features.
     AuthModule,
     UsersModule,
     CatalogModule,
+    CartModule,
   ],
   providers: [
     {
