@@ -217,6 +217,34 @@ export class CatalogService {
     return category;
   }
 
+    // Whether a variant is publicly listed: the variant, its product and its
+  // category are all active. Stock is NOT part of this — a sold-out item is
+  // still listed, which is why the wishlist can hold one.
+  //
+  // Shared with cart and wishlist on purpose. If this definition and
+  // buildProductWhere ever diverge, a customer can hold an item the
+  // storefront no longer shows.
+  //
+  // Uncached: write paths need the current answer, not a 60-second-old one.
+  async isVariantListed(variantId: string): Promise<boolean> {
+    const variant = await this.prisma.productVariant.findUnique({
+      where: { id: variantId },
+      select: {
+        isActive: true,
+        product: {
+          select: { isActive: true, category: { select: { isActive: true } } },
+        },
+      },
+    });
+
+    return Boolean(
+      variant &&
+        variant.isActive &&
+        variant.product.isActive &&
+        variant.product.category.isActive,
+    );
+  }
+
   // Stable key regardless of the order the client sent the params in.
   private queryKey(query: ProductQueryDto): string {
     const parts: string[] = [

@@ -10,6 +10,7 @@ import { CatalogModule } from './modules/catalog/catalog.module';
 import { UsersModule } from './modules/users/users.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { CartModule } from './modules/cart/cart.module';
+import { WishlistModule } from './modules/wishlist/wishlist.module';
 
 const DEV_JWT_SECRET = 'dev-secret-change-in-production';
 
@@ -60,6 +61,7 @@ const DEV_JWT_SECRET = 'dev-secret-change-in-production';
     UsersModule,
     CatalogModule,
     CartModule,
+    WishlistModule,
   ],
   providers: [
     {

@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { CatalogService } from '../catalog/catalog.service';
 import {
   AddCartItemDto,
   MAX_QUANTITY_PER_LINE,
@@ -36,6 +37,7 @@ export class CartService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly inventory: InventoryService,
+    private readonly catalog: CatalogService,
   ) {}
 
   // ---------- reads ----------
@@ -424,30 +426,13 @@ export class CartService {
   // ---------- guards ----------
 
   private async loadPurchasableVariant(variantId: string) {
-    const variant = await this.prisma.productVariant.findUnique({
-      where: { id: variantId },
-      select: {
-        id: true,
-        isActive: true,
-        product: {
-          select: { isActive: true, category: { select: { isActive: true } } },
-        },
-      },
-    });
-
     // 404 rather than 400 for an unlisted variant: as far as a customer is
     // concerned it does not exist, and saying otherwise would confirm the
     // existence of unpublished products.
-    if (
-      !variant ||
-      !variant.isActive ||
-      !variant.product.isActive ||
-      !variant.product.category.isActive
-    ) {
+    if (!(await this.catalog.isVariantListed(variantId))) {
       throw new NotFoundException('Item not found');
     }
-
-    return variant;
+    return { id: variantId };
   }
 
   private async assertAvailable(variantId: string, quantity: number) {
